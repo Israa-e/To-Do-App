@@ -79,15 +79,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final filteredIncompleteTasks = tasks.where(
       (task) =>
           !task.isCompleted &&
-          (selectedCategory.id == -1 || task.categoryId == selectedCategory.id) &&
-          (task.title.toLowerCase().contains(searchQuery)),
+          (selectedCategory.id == -1 ||
+              task.categoryId == selectedCategory.id) &&
+          (task.title.toLowerCase().contains(searchQuery) ||
+              task.description.toLowerCase().contains(searchQuery)),
     );
 
     final filteredCompletedTasks = tasks.where(
       (task) =>
           task.isCompleted &&
-          (selectedCategory.id == -1 || task.categoryId == selectedCategory.id) &&
-          (task.title.toLowerCase().contains(searchQuery)),
+          (selectedCategory.id == -1 ||
+              task.categoryId == selectedCategory.id) &&
+          (task.title.toLowerCase().contains(searchQuery) ||
+              task.description.toLowerCase().contains(searchQuery)),
     );
 
     return Scaffold(
@@ -133,6 +137,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.white.withValues(alpha: 0.5),
                       ),
                       prefixIcon: const Icon(Icons.search, color: Colors.white),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.white,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  searchController.clear();
+                                  searchQuery = "";
+                                });
+                              },
+                            )
+                          : null,
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.1),
                       border: OutlineInputBorder(
@@ -241,11 +259,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
                   if (isTaskIncomplete)
                     filteredIncompleteTasks.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 20),
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 20,
+                            ),
                             child: Text(
-                              "No Incomplete Tasks",
-                              style: TextStyle(
+                              searchQuery.isEmpty
+                                  ? "No Incomplete Tasks"
+                                  : "No results matching \"$searchQuery\"",
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                               ),
@@ -284,11 +307,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                   else
                     filteredCompletedTasks.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 20),
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 20,
+                            ),
                             child: Text(
-                              "No Completed Tasks",
-                              style: TextStyle(
+                              searchQuery.isEmpty
+                                  ? "No Completed Tasks"
+                                  : "No results matching \"$searchQuery\"",
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                               ),
