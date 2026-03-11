@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:to_do_app/core/db_helper.dart';
+import 'package:to_do_app/core/sync_service.dart';
 import 'package:to_do_app/model/category_model.dart';
 import 'package:to_do_app/model/task_model.dart';
 import 'package:to_do_app/widget/app_snackbar.dart';
@@ -19,28 +19,25 @@ class AddCategoryScreen extends StatefulWidget {
 
 class _AddCategoryScreenState extends State<AddCategoryScreen> {
   TextEditingController categoryNameController = TextEditingController();
-  FirebaseFirestore firebaseFirestore = FirebaseFirestore.instance;
   bool isLoading = false;
   void addCategory() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
     if (categoryNameController.text.trim().isEmpty) {
       AppSnackbar.error("Category name cannot be empty");
       return;
     }
     setState(() => isLoading = true);
     try {
-      Category category = Category(name: categoryNameController.text.trim());
+      Category category = Category(
+        name: categoryNameController.text.trim(),
+        isSynced: false,
+        userId: user.uid,
+      );
 
       await DBHelper.insertCategory(category);
-
-      await firebaseFirestore
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .collection('categories')
-          .add({
-            'name': categoryNameController.text.trim(),
-            'isSelected': false,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+      SyncService().sync(); // Trigger background sync
       Get.back();
       setState(() {});
       AppSnackbar.success("Category added successfully");

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:to_do_app/core/db_helper.dart';
 import 'package:to_do_app/model/category_model.dart';
 import 'package:to_do_app/model/task_model.dart';
 import 'package:to_do_app/view/home/add_task_screen.dart';
 import 'package:to_do_app/widget/app_snackbar.dart';
+import 'package:to_do_app/core/sync_service.dart';
 import 'package:to_do_app/widget/category_item.dart';
 import 'package:to_do_app/widget/empty_task_widget.dart';
 import 'package:to_do_app/widget/task_item.dart';
@@ -28,9 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => isLoading = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
       // 1️⃣ Fetch Categories from SQLite
-      final dbCategories = await DBHelper.getCategories();
-      tasks = await DBHelper.getTasks();
+      final dbCategories = await DBHelper.getCategories(user.uid);
+      tasks = await DBHelper.getTasks(user.uid);
 
       // Always add "All" at the beginning
       categories = [
@@ -281,21 +286,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onFavorite: () async {
                                   setState(() {
                                     task.isFavorite = !task.isFavorite;
+                                    task.isSynced = false;
                                   });
                                   await DBHelper.updateTask(task);
+                                  SyncService().sync();
                                 },
                                 key_: ValueKey(task.id),
                                 task: task,
                                 onChanged: (value) async {
                                   setState(() {
                                     task.isCompleted = value!;
+                                    task.isSynced = false;
                                   });
                                   await DBHelper.updateTask(task);
+                                  SyncService().sync();
                                 },
                                 onDismissed: (direction) async {
                                   if (direction ==
                                       DismissDirection.endToStart) {
                                     await DBHelper.deleteTask(task.id!);
+                                    SyncService().sync();
                                     setState(() {
                                       tasks.remove(task);
                                     });
@@ -329,21 +339,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onFavorite: () async {
                                   setState(() {
                                     task.isFavorite = !task.isFavorite;
+                                    task.isSynced = false;
                                   });
                                   await DBHelper.updateTask(task);
+                                  SyncService().sync();
                                 },
                                 key_: ValueKey(task.id),
                                 task: task,
                                 onChanged: (value) async {
                                   setState(() {
                                     task.isCompleted = value!;
+                                    task.isSynced = false;
                                   });
                                   await DBHelper.updateTask(task);
+                                  SyncService().sync();
                                 },
                                 onDismissed: (direction) async {
                                   if (direction ==
                                       DismissDirection.endToStart) {
                                     await DBHelper.deleteTask(task.id!);
+                                    SyncService().sync();
                                     setState(() {
                                       tasks.remove(task);
                                     });

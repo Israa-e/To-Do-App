@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:to_do_app/core/db_helper.dart';
+import 'package:to_do_app/core/sync_service.dart';
 import 'package:to_do_app/core/theme_app.dart';
 import 'package:to_do_app/model/category_model.dart';
 import 'package:to_do_app/model/task_model.dart';
@@ -42,7 +42,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   Future<void> fetchCategories() async {
     try {
-      categories = List<Category>.from(await DBHelper.getCategories());
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      categories = List<Category>.from(await DBHelper.getCategories(user.uid));
       if (categories.isEmpty) {
         categories.add(Category(id: -1, name: "All", isSelected: true));
       } else {
@@ -71,6 +73,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> saveTask() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
     if (taskNameController.text.trim().isEmpty) {
       AppSnackbar.error("Task name cannot be empty");
       return;
@@ -93,6 +98,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       categoryId: selectedCategory.id != -1 ? selectedCategory.id : null,
       isCompleted: widget.task?.isCompleted ?? false,
       isFavorite: widget.task?.isFavorite ?? false,
+      userId: user.uid,
     );
 
     try {
@@ -107,29 +113,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         debugPrint("Task inserted in DB");
       }
 
-      // Try to sync with Firestore (don't block on this)
-      if (!isEditing) {
-        try {
-          debugPrint("Starting Firestore sync...");
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(FirebaseAuth.instance.currentUser!.uid)
-              .collection('tasks')
-              .add({
-                'title': newTask.title,
-                'description': newTask.description,
-                'dueDate': newTask.dueDate.toIso8601String(),
-                'isCompleted': newTask.isCompleted ? 1 : 0,
-                'isFavorite': newTask.isFavorite ? 1 : 0,
-                'categoryId': newTask.categoryId,
-                'createdAt': FieldValue.serverTimestamp(),
-              });
-          debugPrint("Firestore sync complete");
-        } catch (firestoreError) {
-          debugPrint("Firestore sync failed: $firestoreError");
-          // Continue anyway - local save succeeded
-        }
-      }
+      // Trigger background sync
+      SyncService().sync();
       Get.back(result: true);
 
       AppSnackbar.success(

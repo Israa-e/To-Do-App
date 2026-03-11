@@ -7,7 +7,7 @@ class AppSnackbar {
       "Error",
       message,
       backgroundColor: const Color(0xFF1C1C1C),
-      colorText: Colors.white,
+      colorText: const Color.fromRGBO(255, 255, 255, 1),
       snackPosition: SnackPosition.BOTTOM,
       borderRadius: 12,
       margin: const EdgeInsets.all(16),

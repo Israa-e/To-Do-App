@@ -53,8 +53,11 @@ class _FavTaskScreenState extends State<FavTaskScreen> {
     setState(() => isLoading = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
       // Fetch all tasks from SQLite
-      final allTasks = await DBHelper.getTasks();
+      final allTasks = await DBHelper.getTasks(user.uid);
 
       // Filter only favorite tasks
       favoriteTasks = allTasks

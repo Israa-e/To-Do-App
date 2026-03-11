@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -12,6 +11,7 @@ import 'package:to_do_app/view/intro/Start_Screen.dart';
 import 'package:to_do_app/widget/app_snackbar.dart';
 import 'package:to_do_app/widget/build_textfield.dart';
 import 'package:to_do_app/widget/primary_button.dart';
+import 'package:to_do_app/core/sync_service.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -75,37 +75,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           localUser?.imagePath ?? FirebaseAuth.instance.currentUser?.photoURL;
     });
 
-    // 2. Sync from Firestore
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      if (userDoc.exists) {
-        UserModel remoteUser = UserModel.fromFirestore(
-          userDoc.data() as Map<String, dynamic>,
-          userDoc.id,
-        );
-
-        setState(() {
-          name = remoteUser.name;
-          email = remoteUser.email;
-          profileImageUrl = remoteUser.imagePath;
-        });
-
-        // Update local cache
-        await DBHelper.saveUser(remoteUser);
-        await prefs.setString('name', remoteUser.name);
-        await prefs.setString('email', remoteUser.email);
-      }
-    } catch (e) {
-      debugPrint("Error syncing user data: $e");
-    }
+    // 2. Sync from Firestore is handled by SyncService listeners/sync
+    SyncService().sync();
   }
 
   Future<void> loadTaskCounts() async {
+    if (userId == null) return;
     try {
-      final tasks = await DBHelper.getTasks();
+      final tasks = await DBHelper.getTasks(userId!);
       setState(() {
         taskLeft = tasks.where((t) => !t.isCompleted).length;
         taskDone = tasks.where((t) => t.isCompleted).length;
@@ -125,11 +102,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 1. Update Firebase Auth
       await FirebaseAuth.instance.currentUser?.updateDisplayName(newName);
 
-      // 2. Update Firestore - use set with merge instead of update
-      await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'name': newName,
-        'email': email,
-      }, SetOptions(merge: true));
+      // 2. Schedule Firestore sync
+      SyncService()
+          .sync(); // Or handle user profile specifically in SyncService
 
       // 3. Update Local
       SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -213,12 +188,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       debugPrint("Image saved locally to: $localPath");
 
-      // Update Firestore with just a flag (not the actual image)
-      await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'hasProfileImage': true,
-        'name': name,
-        'email': email,
-      }, SetOptions(merge: true));
+      // Update Local Firestore marker
+      // SyncService should handle user profile too if needed
+      SyncService().sync();
 
       // Update Local SQLite
       await DBHelper.saveUser(
@@ -598,6 +570,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SharedPreferences prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('isLoggedIn', false);
                 await prefs.remove('userId');
+                await DBHelper.clearAllData();
                 await FirebaseAuth.instance.signOut();
                 Get.offAll(() => const StartScreen());
               },
